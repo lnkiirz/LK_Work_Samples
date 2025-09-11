@@ -1,0 +1,1582 @@
+---
+title: "ECM - Diphtheria"
+author: "Lyubomir N. Kolev II"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r start_time, message=FALSE, warning=FALSE, include=FALSE}
+start_time <- print(Sys.time())
+```
+
+#### Loading the Necessary Packages
+
+The chunk of code below will load all the necessary packages to complete the data manipulation and graphing. In addition, if any packages are not already installed, it will install them.
+
+```{r install_packages, echo = FALSE, results = FALSE, message = FALSE, warning = FALSE}
+install.packages(setdiff("pacman", rownames(installed.packages())))
+library(pacman)
+p_load(
+  tidyverse, 
+  readxl, 
+  ggrepel, 
+  rlang, 
+  gridExtra
+  )
+```
+
+#### Parameters
+
+```{r}
+Regions <- c("Lowcountry", "Midlands", "Pee Dee", "Upstate")
+Years <- c("2022", "2023", "2024")
+Quarters <- c("Q1", "Q2", "Q3", "Q4")
+Metrics <- c("N", "PCT")
+Year_labels <- c("-'22", "-'23", "-'24")
+current_year <- 2024
+current_quarter <- 3
+```
+
+#### Variable Naming Function - State
+
+```{r name_columns_state, message=FALSE, warning=FALSE, include=FALSE}
+# function to create names
+name_columns_state <- function(Years, Quarters, Metrics) {
+  
+  column_names_state <- c()
+  
+    for (Year in Years) {
+      for (Quarter in Quarters) {
+        for (Metric in Metrics) {
+          column_names_state <- c(column_names_state, paste(Year, Quarter, Metric, sep = "_"))
+        }
+      }
+    }
+  
+  column_names_state <- c("Variable", column_names_state, "Total")
+  
+  return(column_names_state)
+}
+
+column_names_state <- name_columns_state(Years, Quarters, Metrics)
+```
+
+#### Variable Naming Function - Regions
+
+```{r name_columns_region, message=FALSE, warning=FALSE, include=FALSE}
+# function to create names
+name_columns_regions <- function(Regions, Years, Quarters, Metrics) {
+  column_names_regions <- c()
+  
+  for (Region in Regions) {
+    for (Year in Years) {
+      for (Quarter in Quarters) {
+        for (Metric in Metrics) {
+          column_names_regions <- c(column_names_regions, paste(Region, Year, Quarter, Metric, sep = "_"))
+        }
+      }
+    }
+  }
+  
+  column_names_regions <- c("Variable", column_names_regions, "Total")
+  
+  return(column_names_regions)
+}
+
+column_names_regions <- name_columns_regions(Regions, Years, Quarters, Metrics)
+```
+
+#### Importing Dataset
+
+Next, we import the dataset into a several dataframes named after each Sheet in the Excel workbook. Given the formatting in some of the merged cells in the workbook, additional cleaning occurs. This is achieved by pivoting, renaming columns, and using if/then logic for when values appear above the row where they actually should.
+
+```{r import_data, message=FALSE, warning=FALSE, include=FALSE}
+Print_1_template <-
+    expand.grid(
+    Year = Years,
+    Quarter = c(1, 2, 3, 4)
+  ) %>% 
+  mutate(
+    Year_Qrtr = paste(Year, Quarter, sep = "-")
+  ) %>% 
+  arrange(Year_Qrtr)
+
+Print_1 <-
+  read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Print 1 - Data Set WORK.COMP",
+            skip = 1,
+            na = ".")
+
+Print1_merged <-
+  Print_1_template %>% 
+  left_join(
+    Print_1, by = c("Year_Qrtr")
+  )
+
+ Print_1 <-
+   Print1_merged %>%
+  mutate( # create the Quarter/N label so it reads "Q3(n=35)" for example
+        Q_label = case_when(
+          Quarter == 1 ~ Quarters[[1]],
+          Quarter == 2 ~ Quarters[[2]],
+          Quarter == 3 ~ Quarters[[3]],
+          Quarter == 4 ~ Quarters[[4]]),
+        N = case_when(
+          is.na(N) ~ 0,
+          TRUE ~ N),
+        N_label = case_when(
+            Year == current_year & Quarter > current_quarter ~ NA,
+            TRUE ~ paste0("(n=", N, ")")
+          ),
+        Q_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ Q_label,
+          TRUE ~ paste0(Q_label, N_label)
+        )
+      ) %>% 
+      relocate(Q_label, .after = Quarter) %>%
+      relocate(N_label:Q_N_label, .after = Q_label) %>% 
+  rename(
+    complete_pct_avg = pct_avg
+  )
+
+Print_2_template <-
+  expand.grid(
+    Year = Years,
+    Quarter = c(1, 2, 3, 4)
+  )%>% 
+  mutate(
+    Year_Qrtr = paste(Year, Quarter, sep = "-")
+  ) %>% 
+  arrange(Year_Qrtr)
+ 
+Print_2 <-
+    read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Print 2 - Data Set WORK.COMP",
+            skip = 1,
+            na = ".")
+
+Print2_merged <-
+  Print_2_template %>% 
+  left_join(Print_2, by = "Year_Qrtr")
+
+Print_2 <-
+  Print2_merged %>% 
+    mutate( # create the Quarter/N label so it reads "Q3(n=35)" for example
+        Q_label = case_when(
+          Quarter == 1 ~ Quarters[[1]],
+          Quarter == 2 ~ Quarters[[2]],
+          Quarter == 3 ~ Quarters[[3]],
+          Quarter == 4 ~ Quarters[[4]]),
+        N = case_when(
+          is.na(N) ~ 0,
+          TRUE ~ N),
+        N_label = case_when(
+            Year == current_year & Quarter > current_quarter ~ NA,
+            TRUE ~ paste0("(n=", N, ")")
+          ),
+        Q_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ Q_label,
+          TRUE ~ paste0(Q_label, N_label)
+        )
+      ) %>% 
+      relocate(Q_label, .after = Quarter) %>%
+      relocate(N_label:Q_N_label, .after = Q_label)
+ 
+Print_3_template <-
+  expand.grid(
+    Region = Regions,
+    Year = Years,
+    Quarter = c(1, 2, 3, 4)
+  ) %>% 
+  mutate(
+    Year_Qrtr = paste(Year, Quarter, sep = "-")
+  ) %>% 
+  arrange(Region, Year_Qrtr)
+
+Print_3 <- 
+  read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Print 3 - Data Set WORK.COMP",
+            skip = 1,
+            na = ".")
+
+Print3_merged <-
+  Print_3_template %>% 
+  left_join(
+    Print_3, by = c("Region", "Year_Qrtr")
+  )
+
+Print_3 <-
+  Print3_merged %>% 
+  mutate( # create the Quarter/N label so it reads "Q3(n=35)" for example
+        Q_label = case_when(
+          Quarter == 1 ~ Quarters[[1]],
+          Quarter == 2 ~ Quarters[[2]],
+          Quarter == 3 ~ Quarters[[3]],
+          Quarter == 4 ~ Quarters[[4]]),
+        N = case_when(
+          is.na(N) ~ 0,
+          TRUE ~ N),
+        N_label = case_when(
+            Year == current_year & Quarter > current_quarter ~ NA,
+            TRUE ~ paste0("(n=", N, ")")
+          ),
+        Q_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ Q_label,
+          TRUE ~ paste0(Q_label, N_label)
+        )
+      ) %>% 
+      relocate(Q_label, .after = Quarter) %>% 
+      relocate(N_label:Q_N_label, .after = Q_label) %>% 
+  rename(
+    complete_pct_avg = pct_avg
+  )
+
+Print_4_template <-
+  expand.grid(
+    Region = Regions,
+    Year = Years,
+    Quarter = c(1, 2, 3, 4)
+  )%>% 
+  mutate(
+    Year_Qrtr = paste(Year, Quarter, sep = "-")
+  ) %>% 
+  arrange(Region, Year_Qrtr)
+ 
+Print_4 <-
+    read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Print 4 - Data Set WORK.COMP",
+            skip = 1,
+            na = ".")
+
+Print4_merged <-
+  Print_4_template %>% 
+  left_join(Print_4, by = c("Region", "Year_Qrtr"))
+
+Print_4 <-
+  Print4_merged %>% 
+    mutate( # create the Quarter/N label so it reads "Q3(n=35)" for example
+        Q_label = case_when(
+          Quarter == 1 ~ Quarters[[1]],
+          Quarter == 2 ~ Quarters[[2]],
+          Quarter == 3 ~ Quarters[[3]],
+          Quarter == 4 ~ Quarters[[4]]),
+        N = case_when(
+          is.na(N) ~ 0,
+          TRUE ~ N),
+        N_label = case_when(
+            Year == current_year & Quarter > current_quarter ~ NA,
+            TRUE ~ paste0("(n=", N, ")")
+          ),
+        Q_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ Q_label,
+          TRUE ~ paste0(Q_label, N_label)
+        )
+      ) %>% 
+      relocate(Q_label, .after = Quarter) %>%
+      relocate(N_label:Q_N_label, .after = Q_label)
+
+Tabulate_5_template <-
+    expand_grid(
+    Year = Years,
+    Quarter = c(1, 2, 3, 4),
+    Metric = Metrics,
+    "NULL" = NA_character_ # null column to fill values as NA after pivot
+  ) %>% 
+  mutate(
+    columns = paste(Year, Quarter, Metric, sep = "_")
+  ) %>% 
+  arrange(columns) %>% 
+  pivot_wider(
+    names_from = columns,
+    values_from = "NULL",
+  ) %>% 
+  select(-c(Year:Metric)) %>% 
+  slice(1:3) %>% 
+  mutate(
+    Variable = c("rowmiss", "pass", "Total")
+  ) %>% 
+  relocate(
+    Variable, .before = 1
+  )
+
+Tabulate_5 <-
+  read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Tabulate 5 - Table 1",
+            skip = 1,
+            na = ".") %>%
+  rename(
+    Variable = "...1", # the rename here allows the replace below to work properly
+    "...2" = Year
+  ) %>%
+  mutate(
+    Year = pull(., 2)[1], # pull the cell with the year in it
+    Quarter = pull(., 2)[3], # pull the cell with the quarter in it
+    Year_Qrtr = paste(Year, Quarter, sep = "_")
+  ) %>% 
+  { # break the pipe with a lambda function
+    col_n <- paste(pull(., 7)[4], pull(., 2)[4], sep = "_") # create new col names for easier renaming
+    col_pct <- paste(pull(., 7)[4], "PCT", sep = "_")
+    rename(
+    ., 
+    !!col_n := ...2, # use !! to read the string rather than the variable
+    !!col_pct := ...3
+  )
+  } %>% 
+  select(-c(Year:last_col()))
+
+Tabulate_5 <-
+    Tabulate_5[-c(1:4), ] %>% 
+  left_join(Tabulate_5_template) %>% 
+  select(-Total) %>% 
+  pivot_longer(
+    2:last_col(),
+    names_to = c("Year", "Quarter", "Metric"),
+    names_sep = "_"
+  ) %>% 
+  pivot_wider(
+    names_from = c(Variable, Metric),
+    values_from = value
+  ) %>% 
+  mutate( # create the Quarter/N label so it reads "Q3(n=35)" for example
+        Q_label = case_when(
+          Quarter == 1 ~ Quarters[[1]],
+          Quarter == 2 ~ Quarters[[2]],
+          Quarter == 3 ~ Quarters[[3]],
+          Quarter == 4 ~ Quarters[[4]]),
+        Total_N = case_when(
+          is.na(Total_N) ~ as.character(0),
+          TRUE ~ Total_N),
+        N_label = case_when(
+            Year == current_year & Quarter > current_quarter ~ NA,
+            TRUE ~ paste0("(n=", Total_N, ")")
+          ),
+        Q_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ Q_label,
+          TRUE ~ paste0(Q_label, N_label)),
+      pass_PCT = as.numeric(pass_PCT) / 100, # we need to work backwards a bit here because these are already formatted as %s but the function already takes a decimal and turns into percent so we're reversing them to decimals
+        pass_PCT = case_when(
+        Total_N == 0 & pass_N == 0 ~ NA, TRUE ~ pass_PCT)
+      ) %>% 
+      relocate(Q_label:Q_N_label, .after = Quarter)
+
+Tabulate_6_template <-
+    expand_grid(
+    Region = Regions,
+    Year = Years,
+    Quarter = c(1, 2, 3, 4),
+    Metric = Metrics,
+    "NULL" = NA_character_ # null column to fill values as NA after pivot
+  ) %>% 
+  mutate(
+    columns = paste(Region, Year, Quarter, Metric, sep = "_")
+  ) %>% 
+  arrange(columns) %>% 
+  pivot_wider(
+    names_from = columns,
+    values_from = "NULL",
+  ) %>% 
+  select(-c(Region:Metric)) %>% 
+  slice(1:3) %>% 
+  mutate(
+    Variable = c("rowmiss", "pass", "Total")
+  ) %>% 
+  relocate(
+    Variable, .before = 1
+  )
+
+Tabulate_6 <-
+  read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Tabulate 6 - Table 1",
+            skip = 1,
+            na = ".") %>% 
+  rename(
+    Variable = "...1",
+    region = "Region"
+  ) %>% 
+  mutate(
+    Region = pull(., 2)[1],
+    Year = pull(., 2)[3],
+    Quarter = paste0("Q", pull(., 2)[5]),
+    Region_Year_Qrtr = paste(Region, Year, Quarter, sep = "_")
+  ) %>% 
+  {
+    col_n <- paste(pull(., 8)[6], pull(., 2)[6], sep = "_")
+    col_pct <- paste(pull(., 8)[6], "PCT", sep = "_")
+    rename(
+      .,
+      !!col_n := region,
+      !!col_pct := ...3
+    )
+  } %>% 
+  select(-c(Region:last_col()))
+
+Tabulate_6 <- 
+  Tabulate_6[-c(1:6), ] %>% 
+  left_join(Tabulate_6_template) %>% 
+  select(-Total) %>% 
+  pivot_longer(
+    2:last_col(),
+    names_to = c("Region", "Year", "Quarter", "Metric"),
+    names_sep = "_"
+  ) %>% 
+  pivot_wider(
+    names_from = c(Variable, Metric),
+    values_from = value
+  ) %>% 
+  mutate( # create the Quarter/N label so it reads "Q3(n=35)" for example
+        Q_label = case_when(
+          Quarter == 1 ~ Quarters[[1]],
+          Quarter == 2 ~ Quarters[[2]],
+          Quarter == 3 ~ Quarters[[3]],
+          Quarter == 4 ~ Quarters[[4]]),
+        Total_N = case_when(
+          is.na(Total_N) ~ as.character(0),
+          TRUE ~ Total_N),
+        N_label = case_when(
+            Year == current_year & Quarter > current_quarter ~ NA,
+            TRUE ~ paste0("(n=", Total_N, ")")
+          ),
+        Q_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ Q_label,
+          TRUE ~ paste0(Q_label, N_label)),
+      pass_PCT = as.numeric(pass_PCT) / 100, # we need to work backwards a bit here because these are already formatted as %s but the function already takes a decimal and turns into percent so we're reversing them to decimals
+        pass_PCT = case_when(
+        Total_N == 0 & pass_N == 0 ~ NA, TRUE ~ pass_PCT)
+      ) %>% 
+      relocate(Q_label:Q_N_label, .after = Quarter)
+
+  expand_grid(
+    Year = Years,
+    Quarter = as.character(c(1, 2, 3, 4))
+  )
+
+Tabulate_7 <-
+  read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Tabulate 7 - Table 1",
+            skip = 3)
+Tabulate_7 <- Tabulate_7[, c(1:2, 3:4)]
+colnames(Tabulate_7) <- 
+  c(
+    "Year",
+    "Quarter",
+    "Pass",
+    "N"
+  )
+
+Tabulate_7 <-
+  Tabulate_7[-1, ] %>% 
+  fill(Year, .direction = "down") %>%
+  right_join(Tabulate_7_template, by = c("Year", "Quarter")) %>% 
+  arrange(Year, Quarter) %>% 
+  mutate(
+    Year = case_when(
+      Year == "Year" ~ NA, TRUE ~ Year),
+    Q_label = case_when(
+      Quarter == 1 ~ Quarters[[1]],
+      Quarter == 2 ~ Quarters[[2]],
+      Quarter == 3 ~ Quarters[[3]],
+      Quarter == 4 ~ Quarters[[4]]),
+    Y_label = case_when(
+      Year == Years[[1]] ~ Year_labels[[1]],
+      Year == Years[[2]] ~ Year_labels[[2]],
+      Year == Years[[3]] ~ Year_labels[[3]]),
+    N = case_when(
+          is.na(N) ~ 0,
+          TRUE ~ N),
+    N_label = case_when(
+      Year == current_year & Quarter > current_quarter ~ NA,
+      TRUE ~ paste0("(n=", N, ")")),
+    Q_Y_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ paste0(Q_label, Y_label), TRUE ~ paste0(Q_label, Y_label, N_label)),
+    var8_pass = Pass/N * 100,
+    rownum = row_number()
+  ) %>% 
+  filter(Year != "Column Total") %>% 
+  relocate(Q_label, .after = Quarter) %>%
+  relocate(N_label:Q_Y_N_label, .after = Q_label)
+
+Tabulate_8_template <-
+  expand_grid(
+    Region = Regions,
+    Year = Years,
+    Quarter = as.character(c(1, 2, 3, 4))
+  )
+
+Tabulate_8 <-
+  read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Tabulate 8 - Table 1",
+            skip = 3)
+Tabulate_8 <- Tabulate_8[, c(1:3, 4:5)]
+colnames(Tabulate_8) <- 
+  c(
+    "Region",
+    "Year",
+    "Quarter",
+    "Pass",
+    "N"
+  )
+
+Tabulate_8 <-
+  Tabulate_8[-1, ] %>% 
+  fill(Region, .direction = "down") %>% 
+  fill(Year, .direction = "down") %>% 
+  right_join(Tabulate_8_template, by = c("Region", "Year", "Quarter")) %>% 
+  arrange(Region, Year, Quarter) %>% 
+  mutate(
+    Region = case_when(
+      Region == "Region" ~ NA, TRUE ~ Region),
+    Year = case_when(
+      Year == "Year" ~ NA, TRUE ~ Year),
+    Q_label = case_when(
+      Quarter == 1 ~ Quarters[[1]],
+      Quarter == 2 ~ Quarters[[2]],
+      Quarter == 3 ~ Quarters[[3]],
+      Quarter == 4 ~ Quarters[[4]]),
+    Y_label = case_when(
+      Year == Years[[1]] ~ Year_labels[[1]],
+      Year == Years[[2]] ~ Year_labels[[2]],
+      Year == Years[[3]] ~ Year_labels[[3]]),
+    N = case_when(
+          is.na(N) ~ 0,
+          TRUE ~ N),
+    N_label = case_when(
+      Year == current_year & Quarter > current_quarter ~ NA,
+      TRUE ~ paste0("(n=", N, ")")),
+    Q_Y_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ paste0(Q_label, Y_label), TRUE ~ paste0(Q_label, Y_label, N_label)),
+    var8_pass = Pass/N * 100,
+    rownum = row_number()
+  ) %>% 
+  filter(Region != "Column Total")
+
+Tabulate_9_template <-
+  expand_grid(
+    Year = Years,
+    Quarter = as.character(c(1, 2, 3, 4))
+  )
+
+Tabulate_9 <-
+  read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Tabulate 9 - Table 1",
+            skip = 4,
+            na = ".")
+Tabulate_9 <- Tabulate_9[, c(1:2, 5:6)]
+colnames(Tabulate_9) <-
+  c(
+    "Year",
+    "Quarter",
+    "Qtotal_inv_diff_cat_Yes",
+    "N",
+    "var9"
+  )
+headers <- Tabulate_9[1, ]
+Tabulate_9 <-
+  Tabulate_9[-1, ] %>% 
+  mutate(
+    Qtotal_inv_diff_cat_Yes = ifelse(is.na(Qtotal_inv_diff_cat_Yes), as.numeric(headers[21]), Qtotal_inv_diff_cat_Yes),
+    N = ifelse(is.na(N), as.numeric(headers[22]), N),
+    var9 = Qtotal_inv_diff_cat_Yes/N * 100
+  ) %>% 
+  fill(
+    Year, .direction = "down"
+  ) %>% 
+  right_join(Tabulate_9_template, by = c("Year", "Quarter")) %>% 
+  arrange(Year, Quarter) %>% 
+  mutate(
+    Q_label = case_when(
+      Quarter == 1 ~ Quarters[[1]],
+      Quarter == 2 ~ Quarters[[2]],
+      Quarter == 3 ~ Quarters[[3]],
+      Quarter == 4 ~ Quarters[[4]]),
+    Y_label = case_when(
+      Year == 2021 ~ "-'21",
+      Year == Years[[1]] ~ Year_labels[[1]],
+      Year == Years[[2]] ~ Year_labels[[2]],
+      Year == Years[[3]] ~ Year_labels[[3]]),
+    N = case_when(
+          is.na(N) ~ 0,
+          TRUE ~ N),
+    N_label = case_when(
+      Year == current_year & Quarter > current_quarter ~ NA,
+      TRUE ~ paste0("(n=", N, ")")),
+    Q_Y_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ paste0(Q_label, Y_label), TRUE ~ paste0(Q_label, Y_label, N_label)),
+    rownum = row_number()
+  ) %>% 
+  filter(
+    !grepl("Total", Year)
+  )
+
+Tabulate_10_template <-
+    expand_grid(
+    Region = Regions,
+    Year = Years,
+    Quarter = as.character(c(1, 2, 3, 4))
+  )
+
+Tabulate_10 <-
+  read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Tabulate 10 - Table 1",
+            skip = 4,
+            na = ".")
+Tabulate_10 <- Tabulate_10[, c(1:3, 6:7)]
+colnames(Tabulate_10) <-
+  c(
+    "Region",
+    "Year",
+    "Quarter",
+    "Qtotal_inv_diff_cat_Yes",
+    "N",
+    "var9"
+  )
+headers <- Tabulate_10[1, ]
+Tabulate_10 <-
+  Tabulate_10[-1, ] %>% 
+  mutate(
+    Qtotal_inv_diff_cat_Yes = ifelse(is.na(Qtotal_inv_diff_cat_Yes), as.numeric(headers[22]), Qtotal_inv_diff_cat_Yes),
+    N = ifelse(is.na(N), as.numeric(headers[23]), N),
+    var9 = Qtotal_inv_diff_cat_Yes/N * 100
+  ) %>% 
+  fill(Region, .direction = "down") %>% 
+  fill(Year, .direction = "down") %>% 
+  right_join(Tabulate_10_template, by = c("Region", "Year", "Quarter")) %>% 
+  arrange(Region, Year, Quarter) %>% 
+  mutate(
+    Q_label = case_when(
+      Quarter == 1 ~ Quarters[[1]],
+      Quarter == 2 ~ Quarters[[2]],
+      Quarter == 3 ~ Quarters[[3]],
+      Quarter == 4 ~ Quarters[[4]]),
+    Y_label = case_when(
+      Year == 2021 ~ "-'21",
+      Year == Years[[1]] ~ Year_labels[[1]],
+      Year == Years[[2]] ~ Year_labels[[2]],
+      Year == Years[[3]] ~ Year_labels[[3]]),
+    N = case_when(
+          is.na(N) ~ 0,
+          TRUE ~ N),
+    N_label = case_when(
+      Year == current_year & Quarter > current_quarter ~ NA,
+      TRUE ~ paste0("(n=", N, ")")),
+    Q_Y_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ paste0(Q_label, Y_label), TRUE ~ paste0(Q_label, Y_label, N_label)),
+    rownum = row_number()
+  ) %>% 
+  filter(Region != "COlumn Total")
+
+Tabulate_11_template <-
+    expand_grid(
+    Year = Years,
+    Quarter = as.character(c(1, 2, 3, 4))
+  )
+
+Tabulate_11 <-
+  read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Tabulate 11 - Table 1",
+            skip = 3,
+            na = ".")
+Tabulate_11 <- Tabulate_11[, c(1:2, 3:4)]
+colnames(Tabulate_11) <-
+  c(
+   "Year",
+   "Quarter",
+   "Pass",
+   "N",
+   "pct_CDC"
+  )
+headers <- Tabulate_11[1, ]
+Tabulate_11 <-
+  Tabulate_11[-1, ] %>% 
+  mutate(
+    Pass = ifelse(is.na(Pass), as.numeric(headers[5]), Pass),
+    N = ifelse(is.na(N), as.numeric(headers[6]), N),
+    pct_CDC = Pass/N * 100
+  ) %>% 
+  fill(Year, .direction = "down") %>% 
+  right_join(Tabulate_11_template, by = c("Year", "Quarter")) %>% 
+  arrange(Year, Quarter) %>% 
+  mutate(
+    Q_label = case_when(
+      Quarter == 1 ~ Quarters[[1]],
+      Quarter == 2 ~ Quarters[[2]],
+      Quarter == 3 ~ Quarters[[3]],
+      Quarter == 4 ~ Quarters[[4]]),
+    Y_label = case_when(
+      Year == 2021 ~ "-'21",
+      Year == Years[[1]] ~ Year_labels[[1]],
+      Year == Years[[2]] ~ Year_labels[[2]],
+      Year == Years[[3]] ~ Year_labels[[3]]),
+    N = case_when(
+          is.na(N) ~ 0,
+          TRUE ~ N),
+    N_label = case_when(
+      Year == current_year & Quarter > current_quarter ~ NA,
+      TRUE ~ paste0("(n=", N, ")")),
+    Q_Y_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ paste0(Q_label, Y_label), TRUE ~ paste0(Q_label, Y_label, N_label)),
+    rownum = row_number()
+  ) %>% 
+  filter(Year != "Column Total")
+
+Tabulate_12_template <-
+    expand_grid(
+    Region = Regions,
+    Year = Years,
+    Quarter = as.character(c(1, 2, 3, 4))
+  )
+
+Tabulate_12 <-
+  read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Tabulate 12 - Table 1",
+            skip = 3,
+            na = ".")
+Tabulate_12 <- Tabulate_12[, c(1:3, 4:5)]
+colnames(Tabulate_12) <-
+  c(
+    "Region",
+    "Year",
+    "Quarter",
+    "Pass",
+    "N",
+    "pct_CDC"
+  )
+headers <- Tabulate_12[1, ]
+Tabulate_12 <-
+  Tabulate_12[-1, ] %>% 
+  mutate(
+    Pass = ifelse(is.na(Pass), as.numeric(headers[6]), Pass),
+    N = ifelse(is.na(N), as.numeric(headers[7]), N),
+    pct_CDC = Pass/N * 100,
+    Year = case_when(
+      Region == "Column Total" ~ "NA", TRUE ~ Year)
+  ) %>% 
+  fill(Year, .direction = "down") %>% 
+  fill(Region, .direction = "down") %>% 
+  right_join(Tabulate_12_template, by = c("Region", "Year", "Quarter")) %>% 
+  arrange(Region, Year, Quarter) %>% 
+  mutate(
+    Q_label = case_when(
+      Quarter == 1 ~ Quarters[[1]],
+      Quarter == 2 ~ Quarters[[2]],
+      Quarter == 3 ~ Quarters[[3]],
+      Quarter == 4 ~ Quarters[[4]]),
+    Y_label = case_when(
+      Year == 2021 ~ "-'21",
+      Year == Years[[1]] ~ Year_labels[[1]],
+      Year == Years[[2]] ~ Year_labels[[2]],
+      Year == Years[[3]] ~ Year_labels[[3]]),
+    N = case_when(
+          is.na(N) ~ 0,
+          TRUE ~ N),
+    N_label = case_when(
+      Year == current_year & Quarter > current_quarter ~ NA,
+      TRUE ~ paste0("(n=", N, ")")),
+    Q_Y_N_label = case_when(
+          Year == current_year & Quarter > current_quarter ~ paste0(Q_label, Y_label), TRUE ~ paste0(Q_label, Y_label, N_label)),
+    rownum = row_number()
+  ) %>% 
+  filter(Region != "Column Total")
+
+Print_15 <-
+  read_excel("Diphtheria quarterly output_Jan2022_Sep2024.xlsx",
+            sheet = "Print 15 - Data Set WORK.CAS",
+            skip = 2) %>% 
+  filter(
+    grepl("Incorrect", NOTIFICATION_REJECTED_REASON, ignore.case = TRUE)
+    ) %>% 
+  separate(Year_Qrtr, into = c("Year", "Quarter"))
+
+incorrect_years <-
+  c(Print_15$Year)
+
+incorrect_quarters <-
+  c(Print_15$Quarter)
+
+incorrect_regions <-
+  c(Print_15$Region)
+
+incorrectly_classified <-
+  tibble(
+    Year = incorrect_years,
+    Quarter = as.numeric(incorrect_quarters),
+    Region = incorrect_regions
+  ) %>% 
+    mutate(
+      Year_Qrtr = paste(Year, Quarter, sep = "-"),
+      Region_Year_Qrtr = paste(Region, Year, Quarter, sep = "-")
+    ) %>% 
+  group_by(Region_Year_Qrtr, Year_Qrtr) %>%
+  summarize(count_incorrect = n())
+
+Print_15_state <-
+  Print_1 %>% 
+  select(Year:N) %>%
+  left_join(
+    incorrectly_classified, by = c("Year_Qrtr")
+    ) %>%
+  mutate(
+    pass = case_when(
+      Year_Qrtr %in% incorrectly_classified$Year_Qrtr ~ (N - count_incorrect), TRUE ~ N),
+    pct_class_correct = case_when(
+      Year %in% c(Years [[2]], Years[[3]]) ~ pass/N, TRUE ~ NA)
+  )
+
+Print_15_region <-
+  Print_3 %>% 
+  select(Region:N) %>%
+  mutate(
+    Region_Year_Qrtr = paste(Region, Year, Quarter, sep = "-")
+  ) %>% 
+  left_join(
+    incorrectly_classified, by = c("Region_Year_Qrtr", "Year_Qrtr")
+    ) %>% 
+  mutate(
+    pass = case_when(
+      Region_Year_Qrtr %in% incorrectly_classified$Region_Year_Qrtr ~ (N - count_incorrect),
+      TRUE ~ N),
+     pct_class_correct = case_when(
+       Year %in% c(Years [[2]], Years[[3]]) ~ pass/N, TRUE ~ NA)
+  )
+```
+
+#### Linegraph Graphing Function - Region
+
+```{r region_graphing_function, message=FALSE, warning=FALSE, include=FALSE}
+# give function name and its necessary inputs
+region_linegraph <- function(input, variable_list, Region, Years, Target) {
+  
+  results <- list() # results need to be in a list to allow the loop to utilize multiple variables
+  
+  for (variable in variable_list) {
+    graph_list <- list()
+    for (Year in Years) { # for each variable we:
+    data <-
+      input %>%
+      # mutate(
+      #   "Percent Average" = Average
+      # ) %>%
+      select( # select Region, Quarter, the variable, and Percent Variable
+        Region:Q_N_label,
+        !!sym(variable)
+      ) %>%
+      filter( # filter the data to the appropriate Region and Year
+        Region == !!Region,
+        Year == !!Year
+      ) %>% 
+      mutate(
+        pct_complete = !!sym(variable) * 100
+      )
+    
+    variable_graph <- ggplot( # create the graph
+      data = data, # dataset
+      mapping = aes(x = Q_N_label, y = pct_complete) # x and y axes
+    ) +
+      geom_point( # data points
+        aes(color = "orange"),
+        size = 1.5,
+      ) +
+      geom_line( # line connecting data points
+        aes(color = "orange"),
+        linewidth = .75,
+        group = 1
+      ) +
+      geom_hline( # horizontal line for Target
+        yintercept = as.numeric(Target), color = "green",
+        linewidth = 1) +
+     scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) + # limit graph y axis to only show 0-100% with 20 interval
+      labs(
+        title = paste(Year), # add title, label axes
+        subtitle = paste0("Target = ", Target, "%"),
+        x = "Quarter", 
+        y = "Percent"
+      ) +
+      theme(
+        legend.position = "none", # remove legend
+        panel.background = element_blank(), # remove background
+        panel.grid.major = element_blank(), # remove background grids
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(color = "black", linewidth = .5), # leave horizontal y axis lines
+        axis.ticks.y = element_blank(), # remove tickmarks
+        axis.ticks.x = element_blank(),
+        axis.title.y = if (Year == Years[[1]]) element_text() else element_blank(), # title only for first year's graph
+        axis.text.y = if (Year == Years[[1]]) element_text() else element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank(),
+        plot.margin = unit(c(.01, .01, .01, .01), "cm"),
+        plot.subtitle = if (Year == Years[[1]]) element_text(color = "green3", size = 8) else element_text(color = "white", size = 8)
+      )
+    
+      #this if condition will need to be removed once year 2022 is no longer needed
+      if (!Year %in% c(Years[[2]], Years[[3]]) && variable == "pct_class_correct") {
+        variable_graph <- variable_graph + 
+          annotate(
+            geom = "label", x = 2.5, y = 50, # Adjust x and y as needed
+            label = "NA",
+            color = "black",
+            size = 10
+          )
+      }
+      
+      directory <- getwd() # create folders if they don't already exist
+      disease <- "/Diphtheria"
+      disease_path <- paste0(directory, disease)
+      if (!dir.exists(disease_path)) {
+        dir.create(disease_path)
+      }
+    folders <- c("/Lowcountry", "/Midlands", "/Pee Dee", "/Upstate")
+      for (region in folders) {
+        region_path <- paste0(disease_path, region)
+        if (!dir.exists(region_path)) {
+          dir.create(region_path)
+        }  
+      }
+    
+    results[[variable]] <- data # put variable into result list
+    graph_list[[paste0(variable, Region, Year)]] <- variable_graph
+    
+    print(variable_graph)
+    
+    save_name <- paste0(disease_path, "/", Region, "/", "Plot - ", Region, " ", variable, ".jpeg")
+    plot_grid <- do.call(gridExtra::grid.arrange, c(graph_list, ncol = length(Years)))
+    ggsave(filename = save_name, plot = plot_grid, width = 6, height = 2.5) # save graph
+    }
+  }
+  return(results) # save results, continue loop
+}
+```
+
+#### Lollipop Graphing Function - Region
+
+```{r region_lollipop, message=FALSE, warning=FALSE, include=FALSE}
+# give function name and its necessary inputs
+region_lollipop <- function(input, variable_list, Region, Target) {
+  
+  results <- list()
+
+for (variable in variable_list) {
+  graph_list <- list()
+  data <-
+    input %>% 
+    select(
+      Region:Q_Y_N_label,
+      !!sym(variable),
+      rownum
+    ) %>%
+	filter(
+		Region == !!Region
+		)
+
+  variable_graph <- ggplot(
+    data = data,
+    mapping = aes(x = rownum, y = !!sym(variable))
+    ) +
+  geom_segment(
+    aes(x = rownum, 
+        xend = rownum, 
+        y = 0, 
+        yend = !!sym(variable)), # add another geompoint to 
+    linewidth = 2,
+    color = "gray"
+    ) +
+  geom_point(
+    size = 5, 
+    aes(color = ifelse(!!sym(variable) < Target, "azure4", "green")), 
+    shape = 21, 
+    stroke = 2.5) +
+    scale_color_manual(values = c("azure4" = "azure4", "green" = "green")) +
+  geom_point(
+    aes(color = "azure4")
+  ) +
+    scale_x_continuous(breaks = data$rownum, labels = data$Q_Y_N_label) +  # use labels for the ticks despite using rownumber to make sure they are organize properly
+  theme(
+    legend.position = "none", # remove legend
+        panel.background = element_blank(), # remove background
+        panel.grid.major = element_blank(), # remove background grids
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(color = "gray", linewidth = .1), # leave horizontal y axis lines
+        axis.ticks.y = element_blank(), # remove tickmarks
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.margin = unit(c(.01, .01, .01, .01), "cm")) +
+    scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) +
+    labs(
+      y = "Percent"
+    )
+  
+      directory <- getwd() # create folders if they don't already exist
+      disease <- "/Diphtheria"
+      disease_path <- paste0(directory, disease)
+      if (!dir.exists(disease_path)) {
+        dir.create(disease_path)
+      }
+    folders <- c("/Lowcountry", "/Midlands", "/Pee Dee", "/Upstate")
+      for (region in folders) {
+        region_path <- paste0(disease_path, region)
+        if (!dir.exists(region_path)) {
+          dir.create(region_path)
+        }  
+      }
+      
+      results[[variable]] <- data
+      graph_list[[paste0(variable)]] <- variable_graph
+      
+      print(variable_graph)
+      
+    save_name <- paste0(disease_path, "/", Region, "/", "Plot - ", Region, " ", variable, ".jpeg")
+    ggsave(filename = save_name, plot = variable_graph, width = 5.83, height = 3.33) # save graph
+  }
+  return(results)
+}
+```
+
+#### Variables to Process - 80% Targets
+
+```{r line_variables_80, echo = FALSE, results = FALSE, message = FALSE, warning = FALSE}
+line_variables_80 <-
+  c(
+    "var1",
+    "var2",
+    "var3",
+    "var4",
+    "var5"
+  )
+```
+
+#### Variables to Process - 100% Targets
+
+```{r line_variables_100, echo = FALSE, results = "hide", message = FALSE, warning = FALSE}
+line_variables_100 <-
+  "var6"
+```
+
+#### Regional Graphs
+
+#### Lowcountry
+
+```{r call_variables_80_LC, message = FALSE, warning = FALSE, include = FALSE, results = "hide"}
+region_linegraph(
+  input = Print_3,
+  variable_list = line_variables_80, 
+  Region = "Lowcountry", 
+  Years,
+  Target = 80)
+```
+
+```{r call_variables_80_2_LC, message = FALSE, warning = FALSE, include = FALSE, results = "hide"}
+region_linegraph(
+  input = Print_4,
+  variable_list = "var7", 
+  Region = "Lowcountry", 
+  Years,
+  Target = 80)
+```
+
+```{r call_variables_100_LC, message=FALSE, warning=FALSE, include=FALSE, results="hide"}
+region_linegraph(   
+  input = Tabulate_6, 
+  variable_list = line_variables_100,
+  Region = "Lowcountry",    
+  Years,
+  Target = 100)
+```
+
+```{r call_LC_lollipop_variables_98, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_8,
+  Region = "Lowcountry",
+  variable_list = "var8_pass",
+  Target = 90
+)
+```
+
+```{r call_LC_lollipop_variables_90, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_10,
+  Region = "Lowcountry",
+  variable_list = "var9",
+  Target = 90
+)
+```
+
+```{r call_LC_lollipop_variables_95_3, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_12,
+  Region = "Lowcountry",
+  variable_list = "pct_CDC",
+  Target = 95
+)
+```
+
+```{r pct_classified_LC, message=FALSE, warning=FALSE, include=FALSE}
+region_linegraph(
+  input = Print_15_region,
+  variable_list = "pct_class_correct",
+  Region = "Lowcountry",
+  Years, 
+  Target = 80
+)
+```
+
+#### Midlands
+
+```{r call_variables_80_ML, message = FALSE, warning = FALSE, include = FALSE, results = "hide"}
+region_linegraph(
+  input = Print_3,
+  variable_list = line_variables_80, 
+  Region = "Midlands", 
+  Years,
+  Target = 80)
+```
+
+```{r call_variables_80_2_ML, message = FALSE, warning = FALSE, include = FALSE, results = "hide"}
+region_linegraph(
+  input = Print_4,
+  variable_list = "var7", 
+  Region = "Midlands", 
+  Years,
+  Target = 80)
+```
+
+```{r call_variables_100_ML, message=FALSE, warning=FALSE, include=FALSE, results="hide"}
+region_linegraph(   
+  input = Tabulate_6, 
+  variable_list = line_variables_100,
+  Region = "Midlands",    
+  Years,
+  Target = 100)
+```
+
+```{r call_ML_lollipop_variables_98, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_8,
+  Region = "Midlands",
+  variable_list = "var8_pass",
+  Target = 90
+)
+```
+
+```{r call_ML_lollipop_variables_90, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_10,
+  Region = "Midlands",
+  variable_list = "var9",
+  Target = 90
+)
+```
+
+```{r call_ML_lollipop_variables_95_3, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_12,
+  Region = "Midlands",
+  variable_list = "pct_CDC",
+  Target = 95
+)
+```
+
+```{r pct_classified_ML, message=FALSE, warning=FALSE, include=FALSE}
+region_linegraph(
+  input = Print_15_region,
+  variable_list = "pct_class_correct",
+  Region = "Midlands",
+  Years, 
+  Target = 80
+)
+```
+
+#### Pee Dee
+
+```{r call_variables_80_PD, message = FALSE, warning = FALSE, include = FALSE, results = "hide"}
+region_linegraph(
+  input = Print_3,
+  variable_list = line_variables_80, 
+  Region = "Pee Dee", 
+  Years,
+  Target = 80)
+```
+
+```{r call_variables_80_2_PD, message = FALSE, warning = FALSE, include = FALSE, results = "hide"}
+region_linegraph(
+  input = Print_4,
+  variable_list = "var7", 
+  Region = "Pee Dee", 
+  Years,
+  Target = 80)
+```
+
+```{r call_variables_100_PD, message=FALSE, warning=FALSE, include=FALSE, results="hide"}
+region_linegraph(   
+  input = Tabulate_6, 
+  variable_list = line_variables_100,
+  Region = "Pee Dee",    
+  Years,
+  Target = 100)
+```
+
+```{r call_PD_lollipop_variables_98, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_8,
+  Region = "Pee Dee",
+  variable_list = "var8_pass",
+  Target = 90
+)
+```
+
+```{r call_PD_lollipop_variables_90, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_10,
+  Region = "Pee Dee",
+  variable_list = "var9",
+  Target = 90
+)
+```
+
+```{r call_PD_lollipop_variables_95_3, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_12,
+  Region = "Pee Dee",
+  variable_list = "pct_CDC",
+  Target = 95
+)
+```
+
+```{r pct_classified_PD, message=FALSE, warning=FALSE, include=FALSE}
+region_linegraph(
+  input = Print_15_region,
+  variable_list = "pct_class_correct",
+  Region = "Pee Dee",
+  Years, 
+  Target = 80
+)
+```
+
+#### Upstate
+
+```{r call_variables_80_US, message = FALSE, warning = FALSE, include = FALSE, results = "hide"}
+region_linegraph(
+  input = Print_3,
+  variable_list = line_variables_80, 
+  Region = "Upstate", 
+  Years,
+  Target = 80)
+```
+
+```{r call_variables_80_2_US, message = FALSE, warning = FALSE, include = FALSE, results = "hide"}
+region_linegraph(
+  input = Print_4,
+  variable_list = "var7", 
+  Region = "Upstate", 
+  Years,
+  Target = 80)
+```
+
+```{r call_variables_100_US, message=FALSE, warning=FALSE, include=FALSE, results="hide"}
+region_linegraph(   
+  input = Tabulate_6, 
+  variable_list = line_variables_100,
+  Region = "Upstate",    
+  Years,
+  Target = 100)
+```
+
+```{r call_US_lollipop_variables_98, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_8,
+  Region = "Upstate",
+  variable_list = "var8_pass",
+  Target = 90
+)
+```
+
+```{r call_US_lollipop_variables_90, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_10,
+  Region = "Upstate",
+  variable_list = "var9",
+  Target = 90
+)
+```
+
+```{r call_US_lollipop_variables_95_3, message=FALSE, warning=FALSE, include=FALSE}
+region_lollipop(
+  input = Tabulate_12,
+  Region = "Upstate",
+  variable_list = "pct_CDC",
+  Target = 95
+)
+```
+
+```{r pct_classified_US, message=FALSE, warning=FALSE, include=FALSE}
+region_linegraph(
+  input = Print_15_region,
+  variable_list = "pct_class_correct",
+  Region = "Upstate",
+  Years, 
+  Target = 80
+)
+```
+
+### State Report
+
+#### Linegraph Graphing Function - State
+
+```{r state_line_graphing_function_80, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# give function name and its necessary inputs
+state_linegraph <- function(input, variable_list, Years, Target) {
+  
+  results <- list() # results need to be in a list to allow the loop to utilize multiple variables
+  for (variable in variable_list) {
+    graph_list <- list()
+    for (Year in Years) { # for each variable we:
+      data <-
+        input %>%
+        select( # select Region, Quarter, the variable, and Percent Variable
+          Year:Q_N_label,
+          !!sym(variable)
+        ) %>% 
+        filter( # filter the data to the appropriate Region and Year
+          Year == !!Year
+        ) %>% 
+        mutate( # create the Quarter/N label so it reads "Q3(n=35)" for example
+          pct_complete = !!sym(variable) * 100
+        )
+      
+      variable_graph <- ggplot( # create the graph
+        data = data, # dataset
+        mapping = aes(x = Q_N_label, y = pct_complete) # x and y axes
+      ) +
+        geom_point( # data points
+          aes(color = "orange"),
+          size = 1.5,
+        ) +
+        geom_line( # line connecting data points
+          aes(color = "orange"),
+          linewidth = .75,
+          group = 1
+        ) +
+        geom_hline( # horizontal line for Target
+          yintercept = as.numeric(Target), color = "green",
+          linewidth = 1
+        ) +
+        scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) + # limit graph y axis to only show 0-100% with 20 interval
+        labs(
+          title = paste(Year), # add title, lable axes
+          subtitle = paste0("Target = ", Target, "%"),
+          x = "Quarter", 
+          y = "Percent"
+        ) +
+        theme(
+          legend.position = "none", # remove legend
+          panel.background = element_blank(), # remove background
+          panel.grid.major = element_blank(), # remove background grids
+          panel.grid.minor = element_blank(),
+          panel.grid.major.y = element_line(color = "black", linewidth = .5), # leave horizontal y axis lines
+          axis.ticks.y = element_blank(), # remove tickmarks
+          axis.ticks.x = element_blank(),
+          axis.title.y = if (Year == Years[[1]]) element_text() else element_blank(), # title only for first year's graph
+          axis.text.y = if (Year == Years[[1]]) element_text() else element_blank(),
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          axis.title.x = element_blank(),
+          plot.margin = unit(c(.01, .01, .01, .01), "cm"),
+          plot.subtitle = if (Year == Years[[1]]) element_text(color = "green3", size = 8) else element_text(color = "white", size = 8)
+        )
+      
+      if (!Year %in% c(Years[[2]], Years[[3]]) && variable == "pct_class_correct") {
+        variable_graph <- variable_graph + 
+          annotate(
+            geom = "label", x = 2.5, y = 50, # Adjust x and y as needed
+            label = "NA",
+            color = "black",
+            size = 10
+          )
+      }
+      
+      directory <- getwd() # create folders if they don't already exist
+      disease <- "/Diphtheria"
+      disease_path <- paste0(directory, disease)
+      if (!dir.exists(disease_path)) {
+        dir.create(disease_path)
+      }
+      folders <- c("/State")
+      for (region in folders) {
+        region_path <- paste0(disease_path, region)
+        if (!dir.exists(region_path)) {
+          dir.create(region_path)
+        }  
+      }
+      results[[variable]] <- data # put variable into result list
+      graph_list[[paste0(variable, "SC", Year)]] <- variable_graph
+      
+      print(variable_graph)
+      
+      save_name <- paste0(disease_path, "/", "State", "/", "Plot - ", "SC", " ", variable, ".jpeg")
+      plot_grid <- do.call(grid.arrange, c(graph_list, ncol = length(Years)))
+      ggsave(filename = save_name, plot = plot_grid, width = 6, height = 2.5) # save graph
+    }
+  }
+  return(results) # save results, continue loop
+}
+```
+
+#### Lollipop Graphing Function - State
+
+```{r state_lollipop, message=FALSE, warning=FALSE, include=FALSE}
+state_lollipop <- function(input, variable_list, Target) {
+  
+  results <- list()
+  
+  for (variable in variable_list){
+    graph_list <- list()
+    data <-
+      input %>% 
+      select(
+        Year:Q_Y_N_label,
+        !!sym(variable),
+        rownum
+      ) %>% 
+      mutate(
+        !!sym(variable) := as.numeric(!!sym(variable))
+      )
+    
+    variable_graph <- ggplot(
+      data = data,
+      mapping = aes(x = rownum, y = !!sym(variable))
+    ) +
+      geom_segment(
+        aes(x = rownum, 
+            xend = rownum, 
+            y = 0, 
+            yend = !!sym(variable)), # add another geompoint to 
+        linewidth = 2,
+        color = "gray"
+      ) +
+      geom_point(
+        size = 5, 
+        aes(color = ifelse(!!sym(variable) < Target, "azure4", "green")), 
+        shape = 21, 
+        stroke = 2.5) +
+      scale_color_manual(values = c("azure4" = "azure4", "green" = "green")) +
+      geom_point(
+        aes(color = "azure4")
+      ) +
+      scale_x_continuous(breaks = data$rownum, labels = data$Q_Y_N_label) +  # use labels for the ticks despite using rownumber to make sure they are organize properly
+      theme(
+        legend.position = "none", # remove legend
+        panel.background = element_blank(), # remove background
+        panel.grid.major = element_blank(), # remove background grids
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(color = "gray", linewidth = .1), # leave horizontal y axis lines
+        axis.ticks.y = element_blank(), # remove tickmarks
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.margin = unit(c(.01, .01, .01, .01), "cm")) +
+      scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) +
+      labs(
+        y = "Percent"
+      )
+    
+    directory <- getwd() # create folders if they don't already exist
+    disease <- "/Diphtheria"
+    disease_path <- paste0(directory, disease)
+    if (!dir.exists(disease_path)) {
+      dir.create(disease_path)
+    }
+    folders <- c("/State")
+    for (region in folders) {
+      region_path <- paste0(disease_path, region)
+      if (!dir.exists(region_path)) {
+        dir.create(region_path)
+      }  
+    }
+    
+    results[[variable]] <- data
+    graph_list[[paste0(variable)]] <- variable_graph
+    
+    print(variable_graph)
+    
+    save_name <- paste0(disease_path, "/", "State", "/", "Plot - ", "SC", " ", variable, ".jpeg")
+    ggsave(filename = save_name, plot = variable_graph, width = 5.83, height = 3.33) # save graph
+  }
+  return(results)
+}
+```
+
+#### Use the Function for 80% Targets
+
+```{r call_state_variables_80, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+state_linegraph(
+  input = Print_1,
+  variable_list = line_variables_80,
+  Years,
+  Target = 80
+)
+```
+
+```{r call_state_variables_80_2, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+state_linegraph(
+  input = Print_2,
+  variable_list = "var7",
+  Years,
+  Target = 80
+)
+```
+
+```{r call_variables_100_state, message=FALSE, warning=FALSE, include=FALSE, results="hide"}
+state_linegraph(   
+  input = Tabulate_5, 
+  variable_list = line_variables_100,
+  Years,
+  Target = 100)
+```
+
+```{r call_state_lollipop_variables_98, message=FALSE, warning=FALSE, include=FALSE}
+state_lollipop(
+  input = Tabulate_7,
+  variable_list = "var8_pass",
+  Target = 90
+)
+```
+
+```{r call_state_lollipop_variables_90, message=FALSE, warning=FALSE, include=FALSE}
+state_lollipop(
+  input = Tabulate_9,
+  variable_list = "var9",
+  Target = 90
+)
+```
+
+```{r call_state_lollipop_variables_95_3, message=FALSE, warning=FALSE, include=FALSE}
+state_lollipop(
+  input = Tabulate_11,
+  variable_list = "pct_CDC",
+  Target = 95
+)
+```
+
+```{r pct_classified_state, message=FALSE, warning=FALSE, include=FALSE}
+state_linegraph(
+  input = Print_15_state,
+  variable_list = "pct_class_correct",
+  Years, 
+  Target = 80
+)
+```
+
+#### Conclusion
+
+The graphs should now be generated and labeled in a format easy to paste into PDF, Word, etc.
+
+```{r end_time, message=FALSE, warning=FALSE, include=FALSE}
+end_time <- print(Sys.time())
+```
+
+```{r run_time, echo=FALSE, message=FALSE, warning=FALSE}
+print(
+  paste0("Run time = ",  format(round(end_time-start_time, 2), nsmall = 2))
+)
+```
