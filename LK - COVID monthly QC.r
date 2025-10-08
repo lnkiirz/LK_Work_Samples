@@ -9,7 +9,7 @@
 print(paste("Starting at:", date()))
 ## install and load necessary packages automatically ####
 if(!require(pacman)){install.packages("pacman")}
-p_load(odbc, glue, magrittr, tidyverse, dplyr, writexl)
+pacman::p_load(odbc, glue, magrittr, tidyverse, dplyr, writexl)
 
 previous_month_start <- floor_date(Sys.Date() - months(1), unit = "month")
 previous_month_end <- ceiling_date(Sys.Date() - months(1), unit = "month") - 1
