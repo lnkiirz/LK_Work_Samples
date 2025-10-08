@@ -10,7 +10,7 @@ print(paste("Starting:", date()))
 ### install packages ####
 # installs and loads necessary packages automatically
 if(!require("pacman")){install.packages("pacman")}
-p_load(tictoc, odbc, glue, MMWRweek, magrittr, tidyverse, readxl, writexl, dtplyr, plotly)
+pacman::p_load(tictoc, odbc, glue, MMWRweek, magrittr, tidyverse, readxl, writexl, dtplyr, plotly)
 
 network_folder <-
   "network_path"
