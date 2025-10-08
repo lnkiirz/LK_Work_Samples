@@ -10,7 +10,7 @@ print(paste("Starting:", date()))
 
 # installs and loads necessary packages automatically
 if(!require(pacman)){install.packages("pacman")}
-p_load(tictoc, odbc, magrittr, tidyverse, MMWRweek, RcppRoll)
+pacman::p_load(tictoc, odbc, magrittr, tidyverse, MMWRweek, RcppRoll)
 
 output_path <-
   "C:/OneDrive/DIM Files"
